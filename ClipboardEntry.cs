@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CHistory_VS;
 
 public class ClipboardEntry
@@ -27,9 +29,12 @@ public class ClipboardEntry
         }
     }
 
-    public ClipboardEntry(string text)
+    public ClipboardEntry(string text) : this(text, DateTime.Now) { }
+
+    [JsonConstructor]
+    public ClipboardEntry(string text, DateTime copiedAt)
     {
         Text = text;
-        CopiedAt = DateTime.Now;
+        CopiedAt = copiedAt;
     }
 }

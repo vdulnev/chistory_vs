@@ -17,7 +17,12 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        foreach (var entry in HistoryStore.Load())
+            _history.Add(entry);
+
         HistoryList.ItemsSource = _history;
+        _history.CollectionChanged += (_, _) => HistoryStore.Save(_history);
         UpdateEmptyState();
     }
 

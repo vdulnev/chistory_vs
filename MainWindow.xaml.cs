@@ -112,13 +112,21 @@ public partial class MainWindow : Window
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
         if (!_capturingHotkey)
         {
-            base.OnPreviewKeyDown(e);
+            if (key == Key.Escape)
+            {
+                Hide();
+                e.Handled = true;
+            }
+            else
+            {
+                base.OnPreviewKeyDown(e);
+            }
             return;
         }
-
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
         // Ignore standalone modifier keys
         if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt

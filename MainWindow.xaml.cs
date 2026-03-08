@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using WinForms = System.Windows.Forms;
 
 namespace CHistory_VS;
 
@@ -14,9 +15,11 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<ClipboardEntry> _history = new();
     private readonly ClipboardMonitor _monitor = new();
     private readonly HotkeyManager _hotkeyManager = new();
+    private readonly WinForms.NotifyIcon _trayIcon;
     private AppSettings _settings = AppSettings.Load();
     private bool _suppressClipboardEvent;
     private bool _capturingHotkey;
+    private bool _forceClose;
 
     public MainWindow()
     {
@@ -30,6 +33,8 @@ public partial class MainWindow : Window
 
         HotkeyLabel.Text = _settings.HotkeyDisplayString;
         UpdateEmptyState();
+
+        _trayIcon = CreateTrayIcon();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -44,21 +49,53 @@ public partial class MainWindow : Window
         _hotkeyManager.Register(_settings.HotkeyModifiers, _settings.HotkeyKey);
     }
 
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_forceClose)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+        base.OnClosing(e);
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        _trayIcon.Dispose();
         _monitor.Dispose();
         _hotkeyManager.Dispose();
     }
 
-    private void OnHotkeyPressed(object? sender, EventArgs e)
+    private void OnHotkeyPressed(object? sender, EventArgs e) => ShowWindow();
+
+    private void ShowWindow()
     {
+        Show();
         if (WindowState == WindowState.Minimized)
             WindowState = WindowState.Normal;
-        Show();
         Activate();
         Topmost = true;
         Topmost = false;
+    }
+
+    private WinForms.NotifyIcon CreateTrayIcon()
+    {
+        var menu = new WinForms.ContextMenuStrip();
+        menu.Items.Add("Open", null, (_, _) => ShowWindow());
+        menu.Items.Add(new WinForms.ToolStripSeparator());
+        menu.Items.Add("Exit", null, (_, _) => { _forceClose = true; Close(); });
+
+        var icon = new WinForms.NotifyIcon
+        {
+            Icon = System.Drawing.SystemIcons.Application,
+            Text = "CHistory",
+            Visible = true,
+            ContextMenuStrip = menu
+        };
+        icon.DoubleClick += (_, _) => ShowWindow();
+        return icon;
     }
 
     // ── Hotkey capture ────────────────────────────────────────────────────────

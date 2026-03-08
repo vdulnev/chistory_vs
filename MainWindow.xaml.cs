@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -20,6 +21,11 @@ public partial class MainWindow : Window
     private bool _suppressClipboardEvent;
     private bool _capturingHotkey;
     private bool _forceClose;
+    private IntPtr _previousWindow;
+
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
     public MainWindow()
     {
@@ -68,7 +74,11 @@ public partial class MainWindow : Window
         _hotkeyManager.Dispose();
     }
 
-    private void OnHotkeyPressed(object? sender, EventArgs e) => ShowWindow();
+    private void OnHotkeyPressed(object? sender, EventArgs e)
+    {
+        _previousWindow = GetForegroundWindow();
+        ShowWindow();
+    }
 
     private void ShowWindow()
     {
@@ -233,16 +243,36 @@ public partial class MainWindow : Window
     private void HistoryList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (HistoryList.SelectedItem is ClipboardEntry entry)
-            CopyEntry(entry);
+            _ = CopyAndPaste(entry);
     }
 
     private void HistoryList_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Return && HistoryList.SelectedItem is ClipboardEntry entry)
         {
-            CopyEntry(entry);
             e.Handled = true;
+            _ = CopyAndPaste(entry);
         }
+    }
+
+    private async Task CopyAndPaste(ClipboardEntry entry)
+    {
+        CopyEntry(entry);
+        var target = _previousWindow;
+        Hide();
+        if (target == IntPtr.Zero) return;
+
+        await Task.Delay(80);
+        SetForegroundWindow(target);
+        await Task.Delay(50);
+
+        const byte VK_CONTROL = 0x11;
+        const byte VK_V = 0x56;
+        const uint KEYEVENTF_KEYUP = 0x0002;
+        keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
+        keybd_event(VK_V, 0, 0, UIntPtr.Zero);
+        keybd_event(VK_V, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
     }
 
     private void DeleteItem_Click(object sender, RoutedEventArgs e)

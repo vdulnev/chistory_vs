@@ -238,8 +238,7 @@ public partial class MainWindow : Window
 
     private void HistoryList_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Return && e.KeyboardDevice.Modifiers == ModifierKeys.Alt
-            && HistoryList.SelectedItem is ClipboardEntry entry)
+        if (e.Key == Key.Return && HistoryList.SelectedItem is ClipboardEntry entry)
         {
             CopyEntry(entry);
             e.Handled = true;

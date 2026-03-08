@@ -99,7 +99,7 @@ public partial class MainWindow : Window
 
         var icon = new WinForms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!),
             Text = "CHistory",
             Visible = true,
             ContextMenuStrip = menu

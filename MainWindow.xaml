@@ -146,7 +146,9 @@
                   Background="Transparent" BorderThickness="0"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                   VirtualizingPanel.IsVirtualizing="True"
-                  SelectionChanged="HistoryList_SelectionChanged">
+                  SelectionChanged="HistoryList_SelectionChanged"
+                  MouseDoubleClick="HistoryList_MouseDoubleClick"
+                  KeyDown="HistoryList_KeyDown">
             <ListView.ItemTemplate>
                 <DataTemplate DataType="{x:Type local:ClipboardEntry}">
                     <Grid Margin="14,10,10,10" ToolTip="{Binding Text}">
@@ -200,14 +202,38 @@
 
         <!-- Footer -->
         <Border Grid.Row="3" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,8">
-            <DockPanel>
-                <Button DockPanel.Dock="Left" Content="Clear All"
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0" Content="Clear All"
                         Style="{StaticResource FooterButtonStyle}"
                         Click="ClearAll_Click"/>
-                <TextBlock x:Name="CountLabel" Text="0 items"
+
+                <!-- Hotkey section -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="Hotkey:" Foreground="#9E9E9E" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <Border x:Name="HotkeyBorder" BorderBrush="#E0E0E0" BorderThickness="1"
+                            CornerRadius="3" Padding="7,3">
+                        <TextBlock x:Name="HotkeyLabel" FontSize="12" Foreground="#424242"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <Button x:Name="ChangeHotkeyButton" Content="&#x270E;" Margin="5,0,0,0"
+                            Background="Transparent" BorderThickness="0"
+                            Foreground="#9E9E9E" FontSize="13" Cursor="Hand"
+                            VerticalAlignment="Center" ToolTip="Click then press your shortcut"
+                            Click="ChangeHotkey_Click"/>
+                </StackPanel>
+
+                <TextBlock Grid.Column="2" x:Name="CountLabel" Text="0 items"
                            VerticalAlignment="Center" HorizontalAlignment="Right"
                            Foreground="#9E9E9E" FontSize="12"/>
-            </DockPanel>
+            </Grid>
         </Border>
     </Grid>
 </Window>

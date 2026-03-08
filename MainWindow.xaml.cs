@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Media;
 
 namespace CHistory_VS;
 
@@ -11,8 +13,10 @@ public partial class MainWindow : Window
 
     private readonly ObservableCollection<ClipboardEntry> _history = new();
     private readonly ClipboardMonitor _monitor = new();
+    private readonly HotkeyManager _hotkeyManager = new();
+    private AppSettings _settings = AppSettings.Load();
     private bool _suppressClipboardEvent;
-    private bool _handlingSelection;
+    private bool _capturingHotkey;
 
     public MainWindow()
     {
@@ -23,21 +27,111 @@ public partial class MainWindow : Window
 
         HistoryList.ItemsSource = _history;
         _history.CollectionChanged += (_, _) => HistoryStore.Save(_history);
+
+        HotkeyLabel.Text = _settings.HotkeyDisplayString;
         UpdateEmptyState();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+
         _monitor.ClipboardChanged += OnClipboardChanged;
         _monitor.Attach(this);
+
+        _hotkeyManager.Attach(this);
+        _hotkeyManager.HotkeyPressed += OnHotkeyPressed;
+        _hotkeyManager.Register(_settings.HotkeyModifiers, _settings.HotkeyKey);
     }
 
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
         _monitor.Dispose();
+        _hotkeyManager.Dispose();
     }
+
+    private void OnHotkeyPressed(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+        Show();
+        Activate();
+        Topmost = true;
+        Topmost = false;
+    }
+
+    // ── Hotkey capture ────────────────────────────────────────────────────────
+
+    private void ChangeHotkey_Click(object sender, RoutedEventArgs e)
+    {
+        _capturingHotkey = true;
+        HotkeyLabel.Text = "Press shortcut\u2026";
+        HotkeyLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7));
+        HotkeyBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7));
+        ChangeHotkeyButton.Foreground = new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7));
+        Focus();
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (!_capturingHotkey)
+        {
+            base.OnPreviewKeyDown(e);
+            return;
+        }
+
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        // Ignore standalone modifier keys
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
+                or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
+            return;
+
+        if (key == Key.Escape)
+        {
+            CancelCapture();
+            e.Handled = true;
+            return;
+        }
+
+        var modifiers = Keyboard.Modifiers;
+        if (modifiers == ModifierKeys.None)
+            return; // require at least one modifier
+
+        _settings.HotkeyModifiers = modifiers;
+        _settings.HotkeyKey = key;
+        _settings.Save();
+
+        bool ok = _hotkeyManager.Register(modifiers, key);
+        CommitCapture(ok);
+        e.Handled = true;
+    }
+
+    private void CommitCapture(bool registered)
+    {
+        _capturingHotkey = false;
+        HotkeyLabel.Text = registered
+            ? _settings.HotkeyDisplayString
+            : _settings.HotkeyDisplayString + " (conflict)";
+        var color = registered
+            ? Color.FromRgb(0x42, 0x42, 0x42)
+            : Color.FromRgb(0xE5, 0x39, 0x35);
+        HotkeyLabel.Foreground = new SolidColorBrush(color);
+        HotkeyBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
+        ChangeHotkeyButton.Foreground = new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
+    }
+
+    private void CancelCapture()
+    {
+        _capturingHotkey = false;
+        HotkeyLabel.Text = _settings.HotkeyDisplayString;
+        HotkeyLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x42, 0x42, 0x42));
+        HotkeyBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
+        ChangeHotkeyButton.Foreground = new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
+    }
+
+    // ── Clipboard monitoring ──────────────────────────────────────────────────
 
     private void OnClipboardChanged(object? sender, EventArgs e)
     {
@@ -49,7 +143,6 @@ public partial class MainWindow : Window
             var text = Clipboard.GetText();
             if (string.IsNullOrWhiteSpace(text)) return;
 
-            // Remove existing duplicate anywhere in history
             var existing = _history.FirstOrDefault(en => en.Text == text);
             if (existing != null)
                 _history.Remove(existing);
@@ -61,10 +154,7 @@ public partial class MainWindow : Window
 
             HistoryList.ScrollIntoView(_history[0]);
         }
-        catch
-        {
-            // Clipboard can be locked by other processes; silently ignore
-        }
+        catch { }
 
         UpdateEmptyState();
     }
@@ -76,7 +166,6 @@ public partial class MainWindow : Window
         {
             Clipboard.SetText(entry.Text);
 
-            // Move to top
             int idx = _history.IndexOf(entry);
             if (idx > 0)
             {
@@ -92,26 +181,24 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpdateEmptyState()
+    // ── List interaction ──────────────────────────────────────────────────────
+
+    private void HistoryList_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+
+    private void HistoryList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        var view = CollectionViewSource.GetDefaultView(_history);
-        bool hasVisibleItems = view.Cast<object>().Any();
-
-        EmptyState.Visibility = hasVisibleItems ? Visibility.Collapsed : Visibility.Visible;
-        HistoryList.Visibility = hasVisibleItems ? Visibility.Visible : Visibility.Collapsed;
-
-        CountLabel.Text = _history.Count == 1 ? "1 item" : $"{_history.Count} items";
+        if (HistoryList.SelectedItem is ClipboardEntry entry)
+            CopyEntry(entry);
     }
 
-    private void HistoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void HistoryList_KeyDown(object sender, KeyEventArgs e)
     {
-        if (_handlingSelection) return;
-        if (HistoryList.SelectedItem is not ClipboardEntry entry) return;
-
-        _handlingSelection = true;
-        CopyEntry(entry);
-        HistoryList.SelectedItem = null;
-        _handlingSelection = false;
+        if (e.Key == Key.Return && e.KeyboardDevice.Modifiers == ModifierKeys.Alt
+            && HistoryList.SelectedItem is ClipboardEntry entry)
+        {
+            CopyEntry(entry);
+            e.Handled = true;
+        }
     }
 
     private void DeleteItem_Click(object sender, RoutedEventArgs e)
@@ -137,6 +224,8 @@ public partial class MainWindow : Window
             UpdateEmptyState();
         }
     }
+
+    // ── Search ────────────────────────────────────────────────────────────────
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
@@ -166,5 +255,18 @@ public partial class MainWindow : Window
     {
         SearchBox.Clear();
         SearchBox.Focus();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void UpdateEmptyState()
+    {
+        var view = CollectionViewSource.GetDefaultView(_history);
+        bool hasVisibleItems = view.Cast<object>().Any();
+
+        EmptyState.Visibility = hasVisibleItems ? Visibility.Collapsed : Visibility.Visible;
+        HistoryList.Visibility = hasVisibleItems ? Visibility.Visible : Visibility.Collapsed;
+
+        CountLabel.Text = _history.Count == 1 ? "1 item" : $"{_history.Count} items";
     }
 }

@@ -10,13 +10,15 @@ namespace CHistory_VS;
 
 public partial class MainWindow : Window
 {
-    private readonly ObservableCollection<ClipboardEntry> _history = new();
+    private readonly ObservableCollection<ClipboardEntry> _history   = new();
+    private readonly ObservableCollection<ClipboardEntry> _favorites = new();
     private readonly ClipboardMonitor _monitor = new();
     private readonly HotkeyManager _hotkeyManager = new();
     private readonly WinForms.NotifyIcon _trayIcon;
     private AppSettings _settings = AppSettings.Load();
     private bool _suppressClipboardEvent;
     private bool _forceClose;
+    private bool _showFavorites;
     private IntPtr _previousWindow;
 
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
@@ -27,15 +29,45 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // Load history
         foreach (var entry in HistoryStore.Load())
             _history.Add(entry);
 
+        // Load favorites — migrate from old history.json if favorites.json doesn't exist yet
+        if (HistoryStore.FavoritesFileExists())
+        {
+            foreach (var entry in HistoryStore.LoadFavorites())
+            {
+                entry.IsFavorite = true;
+                _favorites.Add(entry);
+            }
+        }
+        else
+        {
+            // First run with new format: extract favorites from history entries
+            foreach (var entry in _history.Where(e => e.IsFavorite).ToList())
+                _favorites.Add(new ClipboardEntry(entry.Text, entry.CopiedAt) { IsFavorite = true });
+            HistoryStore.SaveFavorites(_favorites);
+        }
+
+        // Sync IsFavorite flag on history entries so the star button renders correctly
+        SyncHistoryFavoriteFlags();
+
         HistoryList.ItemsSource = _history;
-        _history.CollectionChanged += (_, _) => HistoryStore.Save(_history);
+        _history.CollectionChanged   += (_, _) => HistoryStore.Save(_history);
+        _favorites.CollectionChanged += (_, _) => HistoryStore.SaveFavorites(_favorites);
 
         UpdateEmptyState();
 
         _trayIcon = CreateTrayIcon();
+    }
+
+    // Sets IsFavorite on history entries to match presence in _favorites
+    private void SyncHistoryFavoriteFlags()
+    {
+        var favTexts = new HashSet<string>(_favorites.Select(f => f.Text));
+        foreach (var entry in _history)
+            entry.IsFavorite = favTexts.Contains(entry.Text);
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -88,7 +120,8 @@ public partial class MainWindow : Window
 
     private void FocusFirstItem()
     {
-        if (_history.Count == 0) return;
+        var source = _showFavorites ? _favorites : _history;
+        if (source.Count == 0) return;
         HistoryList.SelectedIndex = 0;
         Dispatcher.InvokeAsync(() =>
         {
@@ -122,10 +155,7 @@ public partial class MainWindow : Window
         var dialog = new SettingsWindow(_settings, _hotkeyManager) { Owner = this };
         dialog.ShowDialog();
 
-        // Trim history if max was reduced
-        while (_history.Count > _settings.MaxHistoryItems)
-            _history.RemoveAt(_history.Count - 1);
-
+        TrimHistory(_settings.MaxHistoryItems);
         UpdateEmptyState();
     }
 
@@ -141,16 +171,22 @@ public partial class MainWindow : Window
             var text = Clipboard.GetText();
             if (string.IsNullOrWhiteSpace(text)) return;
 
+            // Remove existing history entry for this text (dedup)
             var existing = _history.FirstOrDefault(en => en.Text == text);
             if (existing != null)
                 _history.Remove(existing);
 
-            _history.Insert(0, new ClipboardEntry(text));
+            // New entry — mark as favorite if this text is already in _favorites
+            var entry = new ClipboardEntry(text)
+            {
+                IsFavorite = _favorites.Any(f => f.Text == text)
+            };
+            _history.Insert(0, entry);
 
-            while (_history.Count > _settings.MaxHistoryItems)
-                _history.RemoveAt(_history.Count - 1);
+            TrimHistory(_settings.MaxHistoryItems);
 
-            HistoryList.ScrollIntoView(_history[0]);
+            if (!_showFavorites)
+                HistoryList.ScrollIntoView(_history[0]);
         }
         catch { }
 
@@ -164,13 +200,30 @@ public partial class MainWindow : Window
         {
             Clipboard.SetText(entry.Text);
 
-            int idx = _history.IndexOf(entry);
-            if (idx > 0)
+            // Find the entry in history (entry may have come from _favorites)
+            var histEntry = _history.FirstOrDefault(h => h.Text == entry.Text);
+            if (histEntry != null)
             {
-                _history.RemoveAt(idx);
-                _history.Insert(0, entry);
-                HistoryList.ScrollIntoView(entry);
+                int idx = _history.IndexOf(histEntry);
+                if (idx > 0)
+                {
+                    _history.RemoveAt(idx);
+                    _history.Insert(0, histEntry);
+                }
             }
+            else
+            {
+                // Item only in favorites (pruned or never in history); add to history
+                var newEntry = new ClipboardEntry(entry.Text, entry.CopiedAt)
+                {
+                    IsFavorite = _favorites.Any(f => f.Text == entry.Text)
+                };
+                _history.Insert(0, newEntry);
+                TrimHistory(_settings.MaxHistoryItems);
+            }
+
+            if (!_showFavorites && _history.Count > 0)
+                HistoryList.ScrollIntoView(_history[0]);
         }
         catch { }
         finally
@@ -220,11 +273,22 @@ public partial class MainWindow : Window
 
     private void DeleteItem_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.Tag is ClipboardEntry entry)
+        if (sender is not Button btn || btn.Tag is not ClipboardEntry entry) return;
+
+        if (_showFavorites)
         {
-            _history.Remove(entry);
-            UpdateEmptyState();
+            // Remove from favorites; clear the flag on the matching history entry
+            _favorites.Remove(entry);
+            var histEntry = _history.FirstOrDefault(h => h.Text == entry.Text);
+            if (histEntry != null) histEntry.IsFavorite = false;
         }
+        else
+        {
+            // Remove from history only; favorites unaffected
+            _history.Remove(entry);
+        }
+
+        UpdateEmptyState();
     }
 
     private void ClearAll_Click(object sender, RoutedEventArgs e)
@@ -249,29 +313,64 @@ public partial class MainWindow : Window
         var text = SearchBox.Text;
         SearchPlaceholder.Visibility = string.IsNullOrEmpty(text) ? Visibility.Visible : Visibility.Collapsed;
         ClearSearchButton.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
-
-        var view = CollectionViewSource.GetDefaultView(_history);
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            view.Filter = null;
-            EmptyTitle.Text = "No clipboard history yet";
-            EmptySubtitle.Text = "Copy something to get started";
-        }
-        else
-        {
-            view.Filter = o => o is ClipboardEntry entry &&
-                entry.Text.Contains(text, StringComparison.OrdinalIgnoreCase);
-            EmptyTitle.Text = "No results found";
-            EmptySubtitle.Text = "Try a different search term";
-        }
-
-        UpdateEmptyState();
+        ApplyFilter();
     }
 
     private void ClearSearch_Click(object sender, RoutedEventArgs e)
     {
         SearchBox.Clear();
         SearchBox.Focus();
+    }
+
+    // ── Tabs ──────────────────────────────────────────────────────────────────
+
+    private void AllTab_Checked(object sender, RoutedEventArgs e)
+    {
+        if (EmptyTitle == null) return; // called before InitializeComponent completes
+        _showFavorites = false;
+        HistoryList.ItemsSource = _history;
+        ApplyFilter();
+    }
+
+    private void FavoritesTab_Checked(object sender, RoutedEventArgs e)
+    {
+        _showFavorites = true;
+        HistoryList.ItemsSource = _favorites;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        var text = SearchBox.Text;
+        var activeCollection = _showFavorites ? (object)_favorites : _history;
+        var view = CollectionViewSource.GetDefaultView(activeCollection);
+
+        if (string.IsNullOrWhiteSpace(text))
+            view.Filter = null;
+        else
+            view.Filter = o => o is ClipboardEntry e &&
+                e.Text.Contains(text, StringComparison.OrdinalIgnoreCase);
+
+        if (_showFavorites)
+        {
+            EmptyIcon.Text = "\u2605";
+            EmptyTitle.Text = "No favorites yet";
+            EmptySubtitle.Text = "Star an item to pin it here";
+        }
+        else if (string.IsNullOrWhiteSpace(text))
+        {
+            EmptyIcon.Text = "\uD83D\uDCCB";
+            EmptyTitle.Text = "No clipboard history yet";
+            EmptySubtitle.Text = "Copy something to get started";
+        }
+        else
+        {
+            EmptyIcon.Text = "\uD83D\uDD0D";
+            EmptyTitle.Text = "No results found";
+            EmptySubtitle.Text = "Try a different search term";
+        }
+
+        UpdateEmptyState();
     }
 
     // ── Key handling ──────────────────────────────────────────────────────────
@@ -289,9 +388,47 @@ public partial class MainWindow : Window
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    private void TrimHistory(int max)
+    {
+        // Favorites are a separate collection; _history is pruned by count unconditionally
+        while (_history.Count > max)
+            _history.RemoveAt(_history.Count - 1);
+    }
+
+    private void FavoriteItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not ClipboardEntry entry) return;
+
+        if (_showFavorites)
+        {
+            // Unstar: remove from favorites, clear flag on history entry
+            _favorites.Remove(entry);
+            var histEntry = _history.FirstOrDefault(h => h.Text == entry.Text);
+            if (histEntry != null) histEntry.IsFavorite = false;
+        }
+        else
+        {
+            // Toggle star in history
+            var existingFav = _favorites.FirstOrDefault(f => f.Text == entry.Text);
+            if (existingFav != null)
+            {
+                _favorites.Remove(existingFav);
+                entry.IsFavorite = false;
+            }
+            else
+            {
+                _favorites.Insert(0, new ClipboardEntry(entry.Text, entry.CopiedAt) { IsFavorite = true });
+                entry.IsFavorite = true;
+            }
+        }
+
+        ApplyFilter();
+    }
+
     private void UpdateEmptyState()
     {
-        var view = CollectionViewSource.GetDefaultView(_history);
+        var activeCollection = _showFavorites ? (object)_favorites : _history;
+        var view = CollectionViewSource.GetDefaultView(activeCollection);
         bool hasVisibleItems = view.Cast<object>().Any();
 
         EmptyState.Visibility = hasVisibleItems ? Visibility.Collapsed : Visibility.Visible;

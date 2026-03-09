@@ -10,6 +10,33 @@
         UseLayoutRounding="True"
         Background="#F5F5F5">
     <Window.Resources>
+        <!-- Favorite button style -->
+        <Style x:Key="FavoriteButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Content" Value="&#x2606;"/>
+            <Setter Property="Foreground" Value="#BDBDBD"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                    <Setter Property="Content" Value="&#x2605;"/>
+                    <Setter Property="Foreground" Value="#FFC107"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- Delete button style -->
         <Style x:Key="DeleteButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
@@ -67,6 +94,36 @@
             </Setter>
         </Style>
 
+        <!-- Tab button style -->
+        <Style x:Key="TabButtonStyle" TargetType="RadioButton">
+            <Setter Property="Padding" Value="16,9"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#9E9E9E"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd" Background="Transparent"
+                                BorderBrush="Transparent" BorderThickness="0,0,0,2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#4FC3F7"/>
+                                <Setter Property="Foreground" Value="#4FC3F7"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#424242"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- ListViewItem style -->
         <Style TargetType="ListViewItem">
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -98,6 +155,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -115,8 +173,21 @@
             </DockPanel>
         </Border>
 
+        <!-- Tab bar -->
+        <Border Grid.Row="1" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="AllTab" Content="History"
+                             Style="{StaticResource TabButtonStyle}"
+                             IsChecked="True"
+                             Checked="AllTab_Checked"/>
+                <RadioButton x:Name="FavoritesTab" Content="Favorites"
+                             Style="{StaticResource TabButtonStyle}"
+                             Checked="FavoritesTab_Checked"/>
+            </StackPanel>
+        </Border>
+
         <!-- Search bar -->
-        <Border Grid.Row="1" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="12,9">
+        <Border Grid.Row="2" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="12,9">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -142,7 +213,7 @@
         </Border>
 
         <!-- History list -->
-        <ListView Grid.Row="2" x:Name="HistoryList"
+        <ListView Grid.Row="3" x:Name="HistoryList"
                   Background="Transparent" BorderThickness="0"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                   VirtualizingPanel.IsVirtualizing="True"
@@ -154,6 +225,7 @@
                     <Grid Margin="14,10,10,10" ToolTip="{Binding Text}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
@@ -175,10 +247,17 @@
                                    Margin="0,4,0,0"/>
 
                         <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                                Style="{StaticResource FavoriteButtonStyle}"
+                                VerticalAlignment="Center"
+                                Margin="8,0,2,0"
+                                Click="FavoriteItem_Click"
+                                Tag="{Binding}"/>
+
+                        <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="2"
                                 Content="&#x2715;"
                                 Style="{StaticResource DeleteButtonStyle}"
                                 VerticalAlignment="Center"
-                                Margin="8,0,2,0"
+                                Margin="2,0,2,0"
                                 Click="DeleteItem_Click"
                                 Tag="{Binding}"/>
                     </Grid>
@@ -187,7 +266,7 @@
         </ListView>
 
         <!-- Empty state -->
-        <StackPanel Grid.Row="2" x:Name="EmptyState"
+        <StackPanel Grid.Row="3" x:Name="EmptyState"
                     VerticalAlignment="Center" HorizontalAlignment="Center"
                     Visibility="Collapsed">
             <TextBlock x:Name="EmptyIcon" Text="&#x1F4CB;" FontSize="52"
@@ -201,7 +280,7 @@
         </StackPanel>
 
         <!-- Footer -->
-        <Border Grid.Row="3" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,8">
+        <Border Grid.Row="4" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>

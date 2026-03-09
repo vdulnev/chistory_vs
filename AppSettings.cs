@@ -9,6 +9,7 @@ public class AppSettings
     public ModifierKeys HotkeyModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift;
     public Key HotkeyKey { get; set; } = Key.H;
     public int MaxHistoryItems { get; set; } = 100;
+    public bool IsDarkTheme { get; set; } = false;
 
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

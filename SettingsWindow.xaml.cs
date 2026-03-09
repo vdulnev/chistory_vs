@@ -19,6 +19,7 @@ public partial class SettingsWindow : Window
 
         HotkeyLabel.Text = _settings.HotkeyDisplayString;
         MaxItemsBox.Text = _settings.MaxHistoryItems.ToString();
+        DarkThemeCheckBox.IsChecked = _settings.IsDarkTheme;
     }
 
     // ── Hotkey capture ────────────────────────────────────────────────────────
@@ -82,21 +83,23 @@ public partial class SettingsWindow : Window
         HotkeyLabel.Text = registered
             ? _settings.HotkeyDisplayString
             : _settings.HotkeyDisplayString + " (conflict)";
-        var color = registered
-            ? Color.FromRgb(0x42, 0x42, 0x42)
-            : Color.FromRgb(0xE5, 0x39, 0x35);
-        HotkeyLabel.Foreground = new SolidColorBrush(color);
-        HotkeyBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
-        ChangeHotkeyButton.Foreground = new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
+
+        // Restore DynamicResource colors by clearing local values
+        HotkeyLabel.ClearValue(ForegroundProperty);
+        HotkeyBorder.ClearValue(Border.BorderBrushProperty);
+        ChangeHotkeyButton.ClearValue(ForegroundProperty);
+
+        if (!registered)
+            HotkeyLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0x39, 0x35));
     }
 
     private void CancelCapture()
     {
         _capturingHotkey = false;
         HotkeyLabel.Text = _settings.HotkeyDisplayString;
-        HotkeyLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x42, 0x42, 0x42));
-        HotkeyBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
-        ChangeHotkeyButton.Foreground = new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
+        HotkeyLabel.ClearValue(ForegroundProperty);
+        HotkeyBorder.ClearValue(Border.BorderBrushProperty);
+        ChangeHotkeyButton.ClearValue(ForegroundProperty);
     }
 
     // ── Max items ─────────────────────────────────────────────────────────────
@@ -112,6 +115,15 @@ public partial class SettingsWindow : Window
         _settings.MaxHistoryItems = max;
         _settings.Save();
         MaxItemsBox.Text = max.ToString();
+    }
+
+    // ── Dark theme ────────────────────────────────────────────────────────────
+
+    private void DarkTheme_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.IsDarkTheme = DarkThemeCheckBox.IsChecked == true;
+        _settings.Save();
+        ThemeManager.Apply(_settings.IsDarkTheme);
     }
 
     // ── Footer ────────────────────────────────────────────────────────────────

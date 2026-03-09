@@ -213,37 +213,15 @@
                         Style="{StaticResource FooterButtonStyle}"
                         Click="ClearAll_Click"/>
 
-                <!-- Hotkey section -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal"
-                            HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="Hotkey:" Foreground="#9E9E9E" FontSize="12"
-                               VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <Border x:Name="HotkeyBorder" BorderBrush="#E0E0E0" BorderThickness="1"
-                            CornerRadius="3" Padding="7,3">
-                        <TextBlock x:Name="HotkeyLabel" FontSize="12" Foreground="#424242"
-                                   VerticalAlignment="Center"/>
-                    </Border>
-                    <Button x:Name="ChangeHotkeyButton" Content="&#x270E;" Margin="5,0,0,0"
-                            Background="Transparent" BorderThickness="0"
-                            Foreground="#9E9E9E" FontSize="13" Cursor="Hand"
-                            VerticalAlignment="Center" ToolTip="Click then press your shortcut"
-                            Click="ChangeHotkey_Click"/>
-                </StackPanel>
-
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Max:" Foreground="#9E9E9E" FontSize="12"
-                               VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="MaxItemsBox" Width="46" FontSize="12"
-                             VerticalAlignment="Center" TextAlignment="Center"
-                             BorderBrush="#E0E0E0" BorderThickness="1"
-                             Padding="3,2"/>
-                    <Button x:Name="ApplyMaxButton" Content="Apply" Margin="4,0,0,0"
-                            Style="{StaticResource FooterButtonStyle}"
-                            Click="ApplyMax_Click"/>
-                    <TextBlock Text=" · " Foreground="#BDBDBD" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="CountLabel" Text="0 items"
                                VerticalAlignment="Center"
                                Foreground="#9E9E9E" FontSize="12"/>
+                    <Button Content="&#x2699;" Margin="10,0,0,0"
+                            Background="Transparent" BorderThickness="0"
+                            Foreground="#9E9E9E" FontSize="15" Cursor="Hand"
+                            VerticalAlignment="Center" ToolTip="Settings"
+                            Click="Settings_Click"/>
                 </StackPanel>
             </Grid>
         </Border>

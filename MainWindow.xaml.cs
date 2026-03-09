@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
-using System.Windows.Media;
 using WinForms = System.Windows.Forms;
 
 namespace CHistory_VS;
@@ -17,7 +16,6 @@ public partial class MainWindow : Window
     private readonly WinForms.NotifyIcon _trayIcon;
     private AppSettings _settings = AppSettings.Load();
     private bool _suppressClipboardEvent;
-    private bool _capturingHotkey;
     private bool _forceClose;
     private IntPtr _previousWindow;
 
@@ -35,8 +33,6 @@ public partial class MainWindow : Window
         HistoryList.ItemsSource = _history;
         _history.CollectionChanged += (_, _) => HistoryStore.Save(_history);
 
-        HotkeyLabel.Text = _settings.HotkeyDisplayString;
-        MaxItemsBox.Text = _settings.MaxHistoryItems.ToString();
         UpdateEmptyState();
 
         _trayIcon = CreateTrayIcon();
@@ -107,82 +103,18 @@ public partial class MainWindow : Window
         return icon;
     }
 
-    // ── Hotkey capture ────────────────────────────────────────────────────────
+    // ── Settings ──────────────────────────────────────────────────────────────
 
-    private void ChangeHotkey_Click(object sender, RoutedEventArgs e)
+    private void Settings_Click(object sender, RoutedEventArgs e)
     {
-        _capturingHotkey = true;
-        HotkeyLabel.Text = "Press shortcut\u2026";
-        HotkeyLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7));
-        HotkeyBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7));
-        ChangeHotkeyButton.Foreground = new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7));
-        Focus();
-    }
+        var dialog = new SettingsWindow(_settings, _hotkeyManager) { Owner = this };
+        dialog.ShowDialog();
 
-    protected override void OnPreviewKeyDown(KeyEventArgs e)
-    {
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        // Trim history if max was reduced
+        while (_history.Count > _settings.MaxHistoryItems)
+            _history.RemoveAt(_history.Count - 1);
 
-        if (!_capturingHotkey)
-        {
-            if (key == Key.Escape)
-            {
-                Hide();
-                e.Handled = true;
-            }
-            else
-            {
-                base.OnPreviewKeyDown(e);
-            }
-            return;
-        }
-
-        // Ignore standalone modifier keys
-        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
-                or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
-            return;
-
-        if (key == Key.Escape)
-        {
-            CancelCapture();
-            e.Handled = true;
-            return;
-        }
-
-        var modifiers = Keyboard.Modifiers;
-        if (modifiers == ModifierKeys.None)
-            return; // require at least one modifier
-
-        _settings.HotkeyModifiers = modifiers;
-        _settings.HotkeyKey = key;
-        _settings.Save();
-
-        bool ok = _hotkeyManager.Register(modifiers, key);
-        CommitCapture(ok);
-        e.Handled = true;
-    }
-
-    private void CommitCapture(bool registered)
-    {
-        _capturingHotkey = false;
-        HotkeyLabel.Text = registered
-            ? _settings.HotkeyDisplayString
-            : _settings.HotkeyDisplayString + " (conflict)";
-        var color = registered
-            ? Color.FromRgb(0x42, 0x42, 0x42)
-            : Color.FromRgb(0xE5, 0x39, 0x35);
-        HotkeyLabel.Foreground = new SolidColorBrush(color);
-        HotkeyBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
-        ChangeHotkeyButton.Foreground = new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
-    }
-
-    private void CancelCapture()
-    {
-        _capturingHotkey = false;
-        HotkeyLabel.Text = _settings.HotkeyDisplayString;
-        HotkeyLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x42, 0x42, 0x42));
-        HotkeyBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
-        ChangeHotkeyButton.Foreground = new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
+        UpdateEmptyState();
     }
 
     // ── Clipboard monitoring ──────────────────────────────────────────────────
@@ -330,23 +262,17 @@ public partial class MainWindow : Window
         SearchBox.Focus();
     }
 
-    // ── Max items ─────────────────────────────────────────────────────────────
+    // ── Key handling ──────────────────────────────────────────────────────────
 
-    private void ApplyMax_Click(object sender, RoutedEventArgs e)
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
-        if (!int.TryParse(MaxItemsBox.Text, out int max) || max < 1)
+        if (e.Key == Key.Escape)
         {
-            MaxItemsBox.Text = _settings.MaxHistoryItems.ToString();
+            Hide();
+            e.Handled = true;
             return;
         }
-        max = Math.Min(max, 9999);
-        _settings.MaxHistoryItems = max;
-        _settings.Save();
-
-        while (_history.Count > max)
-            _history.RemoveAt(_history.Count - 1);
-
-        UpdateEmptyState();
+        base.OnPreviewKeyDown(e);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

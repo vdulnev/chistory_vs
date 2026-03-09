@@ -83,6 +83,18 @@ public partial class MainWindow : Window
         Activate();
         Topmost = true;
         Topmost = false;
+        FocusFirstItem();
+    }
+
+    private void FocusFirstItem()
+    {
+        if (_history.Count == 0) return;
+        HistoryList.SelectedIndex = 0;
+        Dispatcher.InvokeAsync(() =>
+        {
+            if (HistoryList.ItemContainerGenerator.ContainerFromIndex(0) is ListViewItem item)
+                item.Focus();
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private WinForms.NotifyIcon CreateTrayIcon()

@@ -1,5 +1,9 @@
 using System.ComponentModel;
+using System.IO;
 using System.Text.Json.Serialization;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media.Imaging;
 
 namespace CHistory_VS;
 
@@ -9,6 +13,7 @@ public class ClipboardEntry : INotifyPropertyChanged
 
     public string Text { get; }
     public DateTime CopiedAt { get; }
+    public string? SourceAppPath { get; set; }
 
     private bool _isFavorite;
     public bool IsFavorite
@@ -22,25 +27,35 @@ public class ClipboardEntry : INotifyPropertyChanged
         }
     }
 
+    [JsonIgnore]
+    private BitmapSource? _sourceAppIcon;
+
+    [JsonIgnore]
+    public BitmapSource? SourceAppIcon
+    {
+        get
+        {
+            if (_sourceAppIcon != null) return _sourceAppIcon;
+            if (string.IsNullOrEmpty(SourceAppPath) || !File.Exists(SourceAppPath)) return null;
+            try
+            {
+                using var icon = System.Drawing.Icon.ExtractAssociatedIcon(SourceAppPath);
+                if (icon == null) return null;
+                _sourceAppIcon = Imaging.CreateBitmapSourceFromHIcon(
+                    icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                _sourceAppIcon.Freeze();
+                return _sourceAppIcon;
+            }
+            catch { return null; }
+        }
+    }
+
     public string Preview
     {
         get
         {
             var trimmed = Text.Trim();
             return trimmed.Length > 300 ? trimmed[..300] + "\u2026" : trimmed;
-        }
-    }
-
-    public string DisplayTime
-    {
-        get
-        {
-            var now = DateTime.Now;
-            if (CopiedAt.Date == now.Date)
-                return CopiedAt.ToString("h:mm tt");
-            if (CopiedAt.Date == now.Date.AddDays(-1))
-                return "Yesterday " + CopiedAt.ToString("h:mm tt");
-            return CopiedAt.ToString("MMM d, h:mm tt");
         }
     }
 

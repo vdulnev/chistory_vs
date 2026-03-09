@@ -228,38 +228,49 @@
                   KeyDown="HistoryList_KeyDown">
             <ListView.ItemTemplate>
                 <DataTemplate DataType="{x:Type local:ClipboardEntry}">
-                    <Grid Margin="14,10,10,10" ToolTip="{Binding Text}">
+                    <Grid Margin="12,9,10,9" ToolTip="{Binding Text}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                        </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0"
-                                   Text="{Binding Preview}"
-                                   FontSize="13" Foreground="{DynamicResource Fg.Primary}"
-                                   TextWrapping="Wrap"
-                                   MaxHeight="58"
-                                   TextTrimming="CharacterEllipsis"
-                                   LineHeight="18"/>
+                        <DockPanel Grid.Column="0" VerticalAlignment="Center">
+                            <Image DockPanel.Dock="Left"
+                                   Source="{Binding SourceAppIcon}"
+                                   Width="16" Height="16"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SourceAppIcon}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                            <TextBlock Text="{Binding Preview}"
+                                       FontSize="13" Foreground="{DynamicResource Fg.Primary}"
+                                       TextWrapping="Wrap"
+                                       MaxHeight="58"
+                                       TextTrimming="CharacterEllipsis"
+                                       LineHeight="18"
+                                       VerticalAlignment="Center"/>
+                        </DockPanel>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0"
-                                   Text="{Binding DisplayTime}"
-                                   FontSize="11" Foreground="{DynamicResource Fg.Secondary}"
-                                   Margin="0,4,0,0"/>
-
-                        <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                        <Button Grid.Column="1"
                                 Style="{StaticResource FavoriteButtonStyle}"
                                 VerticalAlignment="Center"
                                 Margin="8,0,2,0"
                                 Click="FavoriteItem_Click"
                                 Tag="{Binding}"/>
 
-                        <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="2"
+                        <Button Grid.Column="2"
                                 Content="&#x2715;"
                                 Style="{StaticResource DeleteButtonStyle}"
                                 VerticalAlignment="Center"

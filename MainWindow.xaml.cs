@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -24,6 +25,18 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    private static string? GetWindowProcessPath(IntPtr hWnd)
+    {
+        if (hWnd == IntPtr.Zero) return null;
+        try
+        {
+            GetWindowThreadProcessId(hWnd, out uint pid);
+            return Process.GetProcessById((int)pid).MainModule?.FileName;
+        }
+        catch { return null; }
+    }
 
     public MainWindow()
     {
@@ -165,6 +178,8 @@ public partial class MainWindow : Window
     {
         if (_suppressClipboardEvent) return;
 
+        var sourceWindow = GetForegroundWindow();
+
         try
         {
             if (!Clipboard.ContainsText()) return;
@@ -179,7 +194,8 @@ public partial class MainWindow : Window
             // New entry — mark as favorite if this text is already in _favorites
             var entry = new ClipboardEntry(text)
             {
-                IsFavorite = _favorites.Any(f => f.Text == text)
+                IsFavorite = _favorites.Any(f => f.Text == text),
+                SourceAppPath = GetWindowProcessPath(sourceWindow)
             };
             _history.Insert(0, entry);
 

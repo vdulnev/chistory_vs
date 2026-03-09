@@ -11,8 +11,6 @@ namespace CHistory_VS;
 
 public partial class MainWindow : Window
 {
-    private const int MaxHistorySize = 100;
-
     private readonly ObservableCollection<ClipboardEntry> _history = new();
     private readonly ClipboardMonitor _monitor = new();
     private readonly HotkeyManager _hotkeyManager = new();
@@ -38,6 +36,7 @@ public partial class MainWindow : Window
         _history.CollectionChanged += (_, _) => HistoryStore.Save(_history);
 
         HotkeyLabel.Text = _settings.HotkeyDisplayString;
+        MaxItemsBox.Text = _settings.MaxHistoryItems.ToString();
         UpdateEmptyState();
 
         _trayIcon = CreateTrayIcon();
@@ -204,7 +203,7 @@ public partial class MainWindow : Window
 
             _history.Insert(0, new ClipboardEntry(text));
 
-            if (_history.Count > MaxHistorySize)
+            while (_history.Count > _settings.MaxHistoryItems)
                 _history.RemoveAt(_history.Count - 1);
 
             HistoryList.ScrollIntoView(_history[0]);
@@ -329,6 +328,25 @@ public partial class MainWindow : Window
     {
         SearchBox.Clear();
         SearchBox.Focus();
+    }
+
+    // ── Max items ─────────────────────────────────────────────────────────────
+
+    private void ApplyMax_Click(object sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(MaxItemsBox.Text, out int max) || max < 1)
+        {
+            MaxItemsBox.Text = _settings.MaxHistoryItems.ToString();
+            return;
+        }
+        max = Math.Min(max, 9999);
+        _settings.MaxHistoryItems = max;
+        _settings.Save();
+
+        while (_history.Count > max)
+            _history.RemoveAt(_history.Count - 1);
+
+        UpdateEmptyState();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

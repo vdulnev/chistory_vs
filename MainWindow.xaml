@@ -230,9 +230,21 @@
                             Click="ChangeHotkey_Click"/>
                 </StackPanel>
 
-                <TextBlock Grid.Column="2" x:Name="CountLabel" Text="0 items"
-                           VerticalAlignment="Center" HorizontalAlignment="Right"
-                           Foreground="#9E9E9E" FontSize="12"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Max:" Foreground="#9E9E9E" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox x:Name="MaxItemsBox" Width="46" FontSize="12"
+                             VerticalAlignment="Center" TextAlignment="Center"
+                             BorderBrush="#E0E0E0" BorderThickness="1"
+                             Padding="3,2"/>
+                    <Button x:Name="ApplyMaxButton" Content="Apply" Margin="4,0,0,0"
+                            Style="{StaticResource FooterButtonStyle}"
+                            Click="ApplyMax_Click"/>
+                    <TextBlock Text=" · " Foreground="#BDBDBD" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="CountLabel" Text="0 items"
+                               VerticalAlignment="Center"
+                               Foreground="#9E9E9E" FontSize="12"/>
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>

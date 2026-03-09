@@ -20,6 +20,7 @@ public partial class SettingsWindow : Window
         HotkeyLabel.Text = _settings.HotkeyDisplayString;
         MaxItemsBox.Text = _settings.MaxHistoryItems.ToString();
         DarkThemeCheckBox.IsChecked = _settings.IsDarkTheme;
+        AutostartCheckBox.IsChecked = StartupManager.IsEnabled();
     }
 
     // ── Hotkey capture ────────────────────────────────────────────────────────
@@ -124,6 +125,16 @@ public partial class SettingsWindow : Window
         _settings.IsDarkTheme = DarkThemeCheckBox.IsChecked == true;
         _settings.Save();
         ThemeManager.Apply(_settings.IsDarkTheme);
+    }
+
+    // ── Autostart ─────────────────────────────────────────────────────────────
+
+    private void Autostart_Click(object sender, RoutedEventArgs e)
+    {
+        if (AutostartCheckBox.IsChecked == true)
+            StartupManager.Enable();
+        else
+            StartupManager.Disable();
     }
 
     // ── Footer ────────────────────────────────────────────────────────────────
